@@ -1,0 +1,19 @@
+{
+  "name": "jsfuck-eval",
+  "version": "1.0.0",
+  "description": "Partial evaluator for JSFuck",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "jsfuck",
+    "evaluator",
+    "debugger"
+  ],
+  "author": "Heraldo Lucena",
+  "license": "MIT",
+  "dependencies": {
+    "esprima": "^4.0.1"
+  }
+}
