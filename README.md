@@ -1,5 +1,5 @@
 ## JSFuck Debugger
-Partially evaluates the [JSFuck][1]-encoded JavaScript, making the obfuscated code readable.
+Partially evaluates a [JSFuck][1]-encoded JavaScript source, making the obfuscated code readable.
 
 ## Install
 It requires [Esprima][2] to build the Abstract Syntax Tree of the JSFuck code, so after cloning the repository run `npm i` inside its folder.
