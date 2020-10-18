@@ -140,14 +140,15 @@ async function jsfuck_eval(jsfuck) {
             if(iter.done) break;
             let steps = parseInt(await input('Steps: '));
             if(steps == NaN) steps = 1;
-            let next = iter;
+            let next_nodes = iter.value;
             while(!iter.done && i < steps) {
-                next = iter;
+                next_nodes = iter.value;
                 iter = eval_branches.next();
                 i++;
             }
             let evaluation = '', jsfuck_index = 0;
-            for(const node of next.value) {
+            next_nodes.sort((node_a, node_b) => node_a.end - node_b.start);
+            for(const node of next_nodes) {
                 evaluation += (
                     jsfuck.substring(jsfuck_index, node.start) + 
                     JSON.stringify(eval(jsfuck.substring(node.start, node.end)))
