@@ -1,8 +1,5 @@
 ## JSFuck Debugger
-Partially evaluates a [JSFuck][1]-encoded JavaScript source, making the obfuscated code readable.
-
-## Install
-It requires [Esprima][2] to build the Abstract Syntax Tree of the JSFuck code, so after cloning the repository run `npm i` inside its folder.
+Partially evaluates a [JSFuck][1]-encoded JavaScript source making the obfuscated code readable.
 
 ## Usage
 ```
@@ -17,5 +14,4 @@ Don't evaluate untrusted code. `jsfuck-debugger` uses `new Function(...)()` cons
 
 This work in licensed under the MIT License.
 
-[1]: https://en.wikipedia.org/wiki/JSFuck
-[2]: https://github.com/jquery/esprima
+[1]: http://www.jsfuck.com/
