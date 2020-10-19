@@ -2,6 +2,29 @@
 const esprima = require('esprima');
 
 
+function str_truncate(str, length, focus_start, focus_end) {
+    if(str.length <= length || str.length <= focus_end - focus_start) return str;
+    let left_padding = (length - (focus_end - focus_start)) / 2;
+    let right_padding =  left_padding;
+    let left_padding_extra = 0, right_padding_extra = 0;
+    if(focus_start - left_padding < 0) {
+        left_padding = focus_start;
+        right_padding_extra += left_padding - focus_start;
+    }
+    if(focus_end + right_padding >= str.length) {
+        right_padding = str.length - focus_end;
+        left_padding_extra += (focus_end + right_padding) - str.length;
+    }
+    const truncate_start = focus_start - (left_padding + left_padding_extra);
+    const truncate_end = focus_end + (right_padding + right_padding_extra);
+    let truncate = '';
+    if(truncate_start > 0) truncate += '...';
+    truncate += str.substring(truncate_start, truncate_end);
+    if(truncate_end < str.length) truncate += '...';
+    return truncate;
+}
+
+
 class JSFuckSyntaxError extends Error {
     constructor(message, start_pos, end_pos) {
         super(message);
@@ -160,7 +183,7 @@ class JSFuckEvaluator {
             jsfuck_index = node.end;
         }
         evaluation += this._jsfuck.substring(jsfuck_index, this._jsfuck.length);
-        return evaluation;
+        return {evaluation, focus_start: next_nodes[0].start, focus_end: next_nodes[next_nodes.length-1].end};
     }
 
     _eval_to_str(object) {
@@ -201,17 +224,22 @@ async function jsfuck_debug(jsfuck, prompt) {
             switch(command[0]) {
                 case 'c':
                 case 'continue':
+                    let current_eval;
                     if(command.length > 1) {
                         const steps = parseInt(command[1]);
                         if(steps == NaN) {
                             console.log('Invalid parameter, a number is required');
                             break;
                         } else {
-                            evaluation = evaluator.evaluate(steps);
+                            current_eval = evaluator.evaluate(steps);
                         }
                     } else {
-                        evaluation = evaluator.evaluate();
+                        current_eval = evaluator.evaluate();
                     }
+                    evaluation = str_truncate(
+                        current_eval.evaluation, 1000,
+                        current_eval.focus_start, current_eval.focus_end
+                    );
                     console.log(`Step ${evaluator.step}:\n${evaluation}\n`);
                     break;
                 case 's':
@@ -247,6 +275,7 @@ async function jsfuck_debug(jsfuck, prompt) {
     } catch(error) {
         if(error instanceof StopEvaluation) {
             console.log('Evaluation finished.');
+            process.exit(0);
         } else {
             throw error;
         }
