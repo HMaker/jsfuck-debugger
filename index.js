@@ -1,21 +1,5 @@
 #!/usr/bin/env nodejs
-'use strict';
-
-const readline = require('readline');
-const fs = require('fs');
 const esprima = require('esprima');
-
-
-const CONSOLE_HEADER = 'JSFuck Partial Evaluator by Heraldo Lucena <https://www.github.com/HMaker/>';
-
-
-const input_reader = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout
-});
-function input(question) {
-    return new Promise((resolve) => input_reader.question(question, resolve));
-}
 
 
 class JSFuckSyntaxError extends Error {
@@ -27,13 +11,13 @@ class JSFuckSyntaxError extends Error {
     }
 }
 
-function exptree_shrink_branch(ast_node, type) {
+function evaltree_shrink_branch(ast_node, type) {
     if(ast_node.type !== type) return ast_node;
     switch(type) {
         case 'UnaryExpression':
-            return exptree_shrink_branch(ast_node.argument, type);
+            return evaltree_shrink_branch(ast_node.argument, type);
         case 'ArrayExpression':
-            if(ast_node.elements.length == 1) return exptree_shrink_branch(ast_node.elements[0], type);
+            if(ast_node.elements.length == 1) return evaltree_shrink_branch(ast_node.elements[0], type);
             return ast_node;
         default:
             throw new JSFuckSyntaxError(
@@ -44,7 +28,7 @@ function exptree_shrink_branch(ast_node, type) {
     }
 }
 
-function exptree_parse_node(ast_node, parent) {
+function evaltree_parse_node(ast_node, parent) {
     let node = {
         'start': ast_node.range[0],
         'end': ast_node.range[1],
@@ -54,38 +38,38 @@ function exptree_parse_node(ast_node, parent) {
     }
     switch(ast_node.type) {
         case 'Program':
-            for(const ast_child of ast_node.body) node.children.push(exptree_parse_node(ast_child, node));
+            for(const ast_child of ast_node.body) node.children.push(evaltree_parse_node(ast_child, node));
             break;
         case 'ExpressionStatement':
-            node = exptree_parse_node(ast_node.expression, parent);
+            node = evaltree_parse_node(ast_node.expression, parent);
             break;
         case 'BinaryExpression':
-            node.children.push(exptree_parse_node(ast_node.left, node));
-            node.children.push(exptree_parse_node(ast_node.right, node));
+            node.children.push(evaltree_parse_node(ast_node.left, node));
+            node.children.push(evaltree_parse_node(ast_node.right, node));
             break;
         case 'UnaryExpression':
-            node.children.push(exptree_parse_node(
-                exptree_shrink_branch(ast_node.argument, ast_node.type),
+            node.children.push(evaltree_parse_node(
+                evaltree_shrink_branch(ast_node.argument, ast_node.type),
                 node
             ));
             break;
         case 'ArrayExpression':
-            for(const ast_child of ast_node.elements) node.children.push(exptree_parse_node(ast_child, node));
+            for(const ast_child of ast_node.elements) node.children.push(evaltree_parse_node(ast_child, node));
             break;
         case 'ObjectExpression':
-            for(const ast_child of ast_node.properties) node.children.push(exptree_parse_node(ast_child, node));
+            for(const ast_child of ast_node.properties) node.children.push(evaltree_parse_node(ast_child, node));
             break;
         case 'Property':
-            node.children.push(exptree_parse_node(ast_child.key, node));
-            node.children.push(exptree_parse_node(ast_child.value, node));
+            node.children.push(evaltree_parse_node(ast_child.key, node));
+            node.children.push(evaltree_parse_node(ast_child.value, node));
             break;
         case 'MemberExpression':
-            node.children.push(exptree_parse_node(ast_node.object, node));
-            node.children.push(exptree_parse_node(ast_node.property, node));
+            node.children.push(evaltree_parse_node(ast_node.object, node));
+            node.children.push(evaltree_parse_node(ast_node.property, node));
             break;
         case 'CallExpression':
-            node.children.push(exptree_parse_node(ast_node.callee, node));
-            for(const ast_child of ast_node.arguments) node.children.push(exptree_parse_node(ast_child, node));
+            node.children.push(evaltree_parse_node(ast_node.callee, node));
+            for(const ast_child of ast_node.arguments) node.children.push(evaltree_parse_node(ast_child, node));
             break;
         case 'Literal':
             break;
@@ -99,10 +83,10 @@ function exptree_parse_node(ast_node, parent) {
     return node;
 }
 
-function exptree_get_deeper_node(node) {
+function evaltree_get_deeper_node(node) {
     let deeper = node;
     for(const child of node.children) {
-        let next_deeper = exptree_get_deeper_node(child);
+        let next_deeper = evaltree_get_deeper_node(child);
         if(next_deeper.level > deeper.level) {
             deeper = next_deeper;
         }
@@ -110,67 +94,182 @@ function exptree_get_deeper_node(node) {
     return deeper;
 }
 
-/** Yields all nodes that have children, starting from a leaf node */
-function* exptree_iter_eval_branches(node, call_parent=true, current_child=null) {
+/** Yields all nodes that have children, starting from leaf nodes */
+function* evaltree_iter_eval_branches(node, call_parent=true, current_child=null) {
     const branches = [];
     if(current_child) branches.push(current_child);
     for(const child of node.children) {
         if(child !== current_child && child.children.length > 0) {
-            for(const child_branches of exptree_iter_eval_branches(child, false)) {
+            for(const child_branches of evaltree_iter_eval_branches(child, false)) {
                 yield [...branches, ...child_branches];
             }
             branches.push(child);
         }
     }
     yield [node];
-    if(call_parent && node.parent) yield* exptree_iter_eval_branches(node.parent, true, node);
+    if(call_parent && node.parent) yield* evaltree_iter_eval_branches(node.parent, true, node);
 }
 
-function exptree_parse(jsfuck) {
-    return exptree_parse_node(esprima.parseScript(jsfuck, {range: true}), null);
+function evaltree_parse(jsfuck) {
+    return evaltree_parse_node(esprima.parseScript(jsfuck, {range: true}), null);
 }
 
 
-async function jsfuck_eval(jsfuck) {
-    const eval_branches = exptree_iter_eval_branches(exptree_get_deeper_node(exptree_parse(jsfuck)));
-    console.log('\n' + jsfuck + '\n');
-    try {
-        while(true) {
-            let i = 1, iter = eval_branches.next();
-            if(iter.done) break;
-            let steps = parseInt(await input('Steps: '));
-            if(steps == NaN) steps = 1;
-            let next_nodes = iter.value;
-            while(!iter.done && i < steps) {
-                next_nodes = iter.value;
-                iter = eval_branches.next();
-                i++;
-            }
-            let evaluation = '', jsfuck_index = 0;
-            next_nodes.sort((node_a, node_b) => node_a.end - node_b.start);
-            for(const node of next_nodes) {
-                evaluation += (
-                    jsfuck.substring(jsfuck_index, node.start) + 
-                    JSON.stringify(eval(jsfuck.substring(node.start, node.end)))
-                );
-                jsfuck_index = node.end;
-            }
-            evaluation += jsfuck.substring(jsfuck_index, jsfuck.length);
-            console.log('\n' + evaluation + '\n');
+class StopEvaluation extends Error {
+    constructor() {
+        super();
+        this.name = 'StopEvaluation';
+    }
+}
+
+class JSFuckEvaluator {
+
+    constructor(jsfuck) {
+        this._jsfuck = jsfuck;
+        this._eval_start_node = evaltree_get_deeper_node(evaltree_parse(jsfuck))
+        this.restart();
+    }
+
+    restart() {
+        this._step = 1;
+        this._eval_branches = evaltree_iter_eval_branches(this._eval_start_node);
+    }
+
+    get step() {
+        return this._step;
+    }
+
+    evaluate(steps=1) {
+        let iter = this._eval_branches.next();
+        if(iter.done) throw new StopEvaluation();
+        let i = 1, next_nodes = iter.value;
+        this._step++;
+        while(!iter.done && i < steps) {
+            next_nodes = iter.value;
+            iter = this._eval_branches.next();
+            i++;
+            this._step++;
         }
-    } catch(error) {
-        if(error !== undefined) {
-            console.error(error);
+        let evaluation = '', jsfuck_index = 0;
+        next_nodes.sort((node_a, node_b) => node_a.end - node_b.start);
+        for(const node of next_nodes) {
+            evaluation += (
+                this._jsfuck.substring(jsfuck_index, node.start) + 
+                this._eval_to_str(new Function('return ' + this._jsfuck.substring(node.start, node.end))())
+            );
+            jsfuck_index = node.end;
         }
-    } finally {
-        process.exit(0);
+        evaluation += this._jsfuck.substring(jsfuck_index, this._jsfuck.length);
+        return evaluation;
+    }
+
+    _eval_to_str(object) {
+        switch(typeof(object)) {
+            case 'function':
+                return `function ${object.name}(){}`;
+            case 'number':
+            case 'symbol':
+                return object.toString();
+            default:
+                return JSON.stringify(object);
+        }
     }
 }
 
 
-if(process.argv.length == 3) {
-    console.log(CONSOLE_HEADER);
-    jsfuck_eval(fs.readFileSync(process.argv[2], {encoding: 'UTF-8'}));
-} else {
-    console.log(`${CONSOLE_HEADER}\nUsage: nodejs ${process.argv[1]} <JSFuck script's pathname>`);
+const CONSOLE_HEADER    = 'JSFuck Debugger by Heraldo Lucena <https://www.github.com/HMaker/>';
+const PRINT_USAGE       = 'p, print                Print the last evaluation'
+const CONTINUE_USAGE    = 'c, continue <steps>     Resume evaluation, <steps> tells the number of evaluations, it defaults to 1';
+const SET_USAGE         = "s, set <name> <value>   Set the value of global variable named <name>, <value> must be a valid JavaScript expression. All code evaluations are done in the global scope";
+const RESTART_USAGE     = 'r, restart              Restart evaluation';
+const HELP_USAGE        = 'h, help                 Print this help message'
+const USAGE             = [PRINT_USAGE, CONTINUE_USAGE, SET_USAGE, RESTART_USAGE, HELP_USAGE].join('\n');
+
+/**
+ * Start the debugger.
+ * @param {String} jsfuck The JSFuck source.
+ * @param {(message: String) => Promise<String>} prompt Async function that takes input from user.
+ * 
+*/
+async function jsfuck_debug(jsfuck, prompt) {
+    console.log(CONSOLE_HEADER + "\nType 'help' to see available commands");
+    const evaluator = new JSFuckEvaluator(jsfuck);
+    let evaluation = jsfuck;
+    try {
+        while(true) {
+            let command = (await prompt('debug> ')).split(' ');
+            switch(command[0]) {
+                case 'c':
+                case 'continue':
+                    if(command.length > 1) {
+                        const steps = parseInt(command[1]);
+                        if(steps == NaN) {
+                            console.log('Invalid parameter, a number is required');
+                            break;
+                        } else {
+                            evaluation = evaluator.evaluate(steps);
+                        }
+                    } else {
+                        evaluation = evaluator.evaluate();
+                    }
+                    console.log(`Step ${evaluator.step}:\n${evaluation}\n`);
+                    break;
+                case 's':
+                case 'set':
+                    if(command.length != 3) {
+                        console.log('Invalid number of parameters for set command, type help for more info');
+                    } else {
+                        try {
+                            global[command[1]] = new Function('return ' + command[2])();
+                        } catch(error) {
+                            console.error(error);
+                        }
+                    }
+                    break;
+                case 'p':
+                case 'print':
+                    console.log(`Step ${evaluator.step}:\n${evaluation}\n`);
+                    break;
+                case 'r':
+                case 'restart':
+                    evaluator.restart();
+                    evaluation = jsfuck;
+                    console.log('The evaluation has restarted');
+                    break;
+                case 'h':
+                case 'help':
+                    console.log(USAGE);
+                    break;
+                default:
+                    console.log("Invalid command, type 'help' to see the available commands");
+            }
+        }
+    } catch(error) {
+        if(error instanceof StopEvaluation) {
+            console.log('Evaluation finished.');
+        } else {
+            throw error;
+        }
+    }
 }
+
+
+async function main() {
+    const readline = require('readline');
+    const fs = require('fs');
+    const input_reader = readline.createInterface({
+        input: process.stdin,
+        output: process.stdout
+    });
+    const prompt = function(question) {
+        return new Promise((resolve) => input_reader.question(question, resolve));
+    }
+    if(process.argv.length == 3) {
+        await jsfuck_debug(fs.readFileSync(process.argv[2], {encoding: 'UTF-8'}), prompt);
+    } else {
+        console.log(`${CONSOLE_HEADER}\nUsage: nodejs ${process.argv[1]} <JSFuck script's pathname>`);
+    }
+}
+
+/* If it is being run as script, start the debugger */
+if(require.main === module) main();
